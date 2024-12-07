@@ -1,0 +1,112 @@
+---
+title: "ICR"
+output: html_document
+date: "2024-12-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Intercoder Reliability
+
+The Unreliability of Measures of Intercoder Reliability, and What to do About it
+
+### Initial Parameters
+
+```{r}
+C <- 2   # number of coders
+D <- 12   # number of documents
+K <- 3   # number of categories
+```
+
+### 2. The Problem with Using Reliability to Assess Validity
+
+Initialize vectors outlined in Section 2, page 3.
+
+```{r}
+set.seed(1111)
+
+# true category of documents (randomly assigned)
+pi_d <- sample(1:K, size = D, replace = TRUE)   # vector of length as num of documents
+
+# true proportion of documents per each category
+pi <- as.vector(table(pi_d) / D)
+```
+
+Option 1: Randomly generate each coder's decisions on d documents.
+
+```{r}
+# each coder's decision on document d
+y_dc_list <- list()   # list to store y_dc for each coder
+for (c in 1:C) {   # for all coders
+  y_dc <- sample(1:K, size = D, replace = TRUE)   # vector of length as num of documents
+  y_dc_list[[c]] <- y_dc
+}
+
+# proportion of documents each coder puts in category k
+y_c_list <- list()   # list to store y_c for each coder
+for (c in 1:C) {
+  y_dc <- y_dc_list[[c]]
+  y_c <- table(factor(y_dc, levels = 1:K)) / D
+  y_c_list[[c]] <- y_c
+}
+```
+
+Option 2: Randomly generate each coder's misclassification probability matrix and calculate coders' decisions on d documents based on the matrix.
+
+```{r}
+# input: C (number of coders), K (number of categories)
+# output: probability matrix of coder c classifying document into category k (column) if it is in fact in category j (row)
+initialize_epsilon <- function(C, K) {
+  # list to store misclassification probability matrices for each coder
+  epsilon_list <- list()
+  
+  for (c in 1:C) {
+    epsilon <- matrix(0, nrow = K, ncol = K)   # generate K x K matrix
+    
+    for (j in 1:K) {
+      random_probs <- runif(K)   # generate random probabilities for each row
+      
+      epsilon[j, ] <- random_probs / sum(random_probs)   # normalize to ensure the row sums to 1 (because coder must make some decision with each document)
+    }
+    
+    epsilon_list[[c]] <- epsilon   # add the matrix to the list
+  }
+  
+  return(epsilon_list)
+}
+
+# index by coder to access the matrix
+epsilon_list <- initialize_epsilon(C, K)
+
+# formula towards the bottom in Section 2, page 3
+# use misclassification probability and vector pi (true proportion of documents per each category) to calculate y_c (proportion of documents each coder puts in category k)
+calculate_classifications_from_epsilon <- function(epsilon_list, pi, C, K) {
+  # list to store y_c for each coder
+  y_c_list <- list()
+  
+  for (c in 1:C) {
+    epsilon_c <- epsilon_list[[c]]   # misclassification matrix for coder c
+    y_c <- numeric(K)   # initialize vector
+    
+    # calculate y_c by doing matrix-vector multiplication of epsilon and pi
+    for (k in 1:K) {
+      y_c[k] <- sum(epsilon_c[, k] * pi)
+    }
+    
+    y_c_list[[c]] <- y_c   # store the vector to list
+  }
+  
+  return(y_c_list)
+}
+
+y_c_list <- calculate_classifications_from_epsilon(epsilon_list, pi, C, K)
+```
+
+Raw estimates are calculated by averaging categorization results across coders.
+
+```{r}
+# calculate raw estimates
+raw_estimates <- as.vector(Reduce(`+`, y_c_list) / length(y_c_list))
+```
