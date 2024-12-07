@@ -15,7 +15,7 @@ The Unreliability of Measures of Intercoder Reliability, and What to do About it
 ### Initial Parameters
 
 ```{r}
-C <- 2   # number of coders
+C <- 3   # number of coders
 D <- 12   # number of documents
 K <- 3   # number of categories
 ```
@@ -109,4 +109,52 @@ Raw estimates are calculated by averaging categorization results across coders.
 ```{r}
 # calculate raw estimates
 raw_estimates <- as.vector(Reduce(`+`, y_c_list) / length(y_c_list))
+```
+
+Create confusion matrix to represent intercoder reliability (only compatible with option 1).
+
+```{r}
+# initialize an empty list to store confusion matrices
+M_list <- list()
+
+# loop over all pairs of coders (p, q)
+for (p in 1:C) {
+  for (q in 1:C) {
+    # get coder p and coder q's decisions
+    y_p <- y_dc_list[[p]]
+    y_q <- y_dc_list[[q]]
+    
+    # initialize a K x K matrix
+    M <- matrix(0, nrow = K, ncol = K)
+    
+    # populate the matrix with probabilities
+    for (j in 1:K) {
+      for (k in 1:K) {
+        # calculate the proportion of documents where coder p classified as j and coder q classified as k
+        M[j, k] <- mean((y_p == j) & (y_q == k))
+      }
+    }
+    # matrix is stored in M_list under a name "M_pq" where p and q are coder indices
+    M_list[[paste0("M_", p, "_", q)]] <- M
+  }
+}
+```
+
+Use confusion matrix to calculate reliability between coders.
+
+```{r}
+# initialize an empty list to store reliability scores
+a_list <- list()
+
+# loop over all pairs of coders (p, q) to calculate reliability
+for (p in 1:C) {
+  for (q in 1:C) {
+    M <- M_list[[paste0("M_", p, "_", q)]]   # get the confusion matrix for coders p and q
+    
+    # calculate reliability as sum of diagonal elements (Section 2, page 4)
+    reliability <- sum(diag(M))
+    
+    a_list[[paste0("a_", p, "_", q)]] <- reliability   # store the reliability score
+  }
+}
 ```
